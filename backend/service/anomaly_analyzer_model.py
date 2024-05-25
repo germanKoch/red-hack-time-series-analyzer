@@ -54,21 +54,25 @@ class AnomalyAnalizerModel:
         resources = os.path.join(ROOT, "..", "resources")
         self.response_model = load_checkpoint(os.path.join(resources, 'models', 'response_model.pth'))
         self.throughput_model = load_checkpoint(os.path.join(resources, 'models', 'throughput_model.pth'))
+        self.error_model = load_checkpoint(os.path.join(resources, 'models', 'error_model.pth'))
         self.apdex_model = load_checkpoint(os.path.join(resources, 'models', 'apdex_model.pth'))
 
         self.response_data = self._load_df(os.path.join(resources, 'datasets', 'web_response.csv'), self.response_model.scaler)
         self.apdex_data = self._load_df(os.path.join(resources, 'datasets', 'apdex.csv'), self.apdex_model.scaler)
         self.thoughput_data = self._load_df(os.path.join(resources, 'datasets', 'throughput.csv'), self.throughput_model.scaler)
+        self.error_data = self._load_df(os.path.join(resources, 'datasets', 'throughput.csv'), self.throughput_model.scaler)
 
         self.models = {
             TimeSeriesType.RESPONSE: self.response_model,
             TimeSeriesType.APDEX: self.apdex_model,
-            TimeSeriesType.THROUGHPUT: self.throughput_model
+            TimeSeriesType.THROUGHPUT: self.throughput_model,
+            TimeSeriesType.ERROR: self.error_model
         }
         self.data = {
             TimeSeriesType.RESPONSE: self.response_data,
             TimeSeriesType.APDEX: self.apdex_data,
-            TimeSeriesType.THROUGHPUT: self.thoughput_data
+            TimeSeriesType.THROUGHPUT: self.thoughput_data,
+            TimeSeriesType.ERROR: self.error_data
         }
 
     def _load_df(self, path, scaler):
@@ -96,7 +100,6 @@ class AnomalyAnalizerModel:
             model.eval()  # Set the model to evaluation mode
             anomalies = []
             predicted_values = []
-            print('ITERATIONS', len(time_series) - window_size + 1)
             with torch.no_grad():  # Disable gradient calculation
                 for i in range(0, len(time_series) - window_size + 1, window_size):
                     window = time_series[i:i + window_size].unsqueeze(0).unsqueeze(2)  # Add batch dimension
@@ -113,6 +116,4 @@ class AnomalyAnalizerModel:
         anomalies, predicted_values = detect_anomalies(model, deseasonalized, model.threshold, model.seq_len)
         result = [t.to_pydatetime() for t in data.iloc[anomalies].point.to_list()]
         result = [t for t in result if t <= end_date]
-        print(result)
-        print(end_date)
         return result
