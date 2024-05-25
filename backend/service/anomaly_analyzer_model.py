@@ -1,14 +1,13 @@
 import pandas as pd
 import os
 from torch import nn
-import pytorch_lightning as pl
 import torch
 import math
 import datetime as dt
 from backend.service.types import TimeSeriesType
 from statsmodels.tsa.seasonal import seasonal_decompose
 
-class ConvAutoencoder(pl.LightningModule):
+class ConvAutoencoder(nn.Module):
     def __init__(self, loss, hidden_size, seq_len, dropout_prob):
         super(ConvAutoencoder, self).__init__()
         # Encoder
@@ -39,23 +38,6 @@ class ConvAutoencoder(pl.LightningModule):
         decoded = self.decoder(encoded)
         decoded = decoded.permute(0, 2, 1)  # [batch_size, 1, seq_len] -> [batch_size, seq_len, 1]
         return decoded
-    
-    def training_step(self, batch, batch_idx):
-        inputs, _ = batch
-        outputs = self(inputs)
-        loss = self.loss(outputs, inputs.permute(0, 2, 1))
-        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        return loss
-    
-    def validation_step(self, batch, batch_idx):
-        x, y = batch
-        y_hat = self.forward(x)
-        loss = self.loss(y_hat, y)
-        self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-
-    def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=0.0001)
-        return optimizer
     
 def load_checkpoint(path):
     model = ConvAutoencoder(nn.MSELoss(), 128, 128, 0.2)
