@@ -5,7 +5,7 @@ import pytorch_lightning as pl
 import torch
 import math
 import datetime as dt
-from backend.domain import TimeSeriesType
+from service.types import TimeSeriesType
 from statsmodels.tsa.seasonal import seasonal_decompose
 
 class ConvAutoencoder(pl.LightningModule):
@@ -69,14 +69,14 @@ def load_checkpoint(path):
 class AnomalyAnalizerModel:
     def __init__(self):
         ROOT = os.path.dirname(os.path.abspath(__file__))
-        resources = os.path.join(ROOT, "backend", "resources")
-        self.response_model = load_checkpoint(os.path.join(resources, 'model', 'response_model.pth'))
-        self.throughput_model = load_checkpoint(os.path.join(resources, 'model', 'throughput_model.pth'))
-        self.apdex_model = load_checkpoint(os.path.join(resources, 'model', 'apdex_model.pth'))
+        resources = os.path.join(ROOT, "..", "resources")
+        self.response_model = load_checkpoint(os.path.join(resources, 'models', 'response_model.pth'))
+        self.throughput_model = load_checkpoint(os.path.join(resources, 'models', 'throughput_model.pth'))
+        self.apdex_model = load_checkpoint(os.path.join(resources, 'models', 'apdex_model.pth'))
 
-        self.response_data = self._load_df(os.path.join(resources, 'data', 'web_response.csv'), self.response_model.scaler)
-        self.apdex_data = self._load_df(os.path.join(resources, 'data', 'apdex.csv'), self.apdex_model.scaler)
-        self.thoughput_data = self._load_df(os.path.join(resources, 'data', 'throughput.csv'), self.throughput_model.scaler)
+        self.response_data = self._load_df(os.path.join(resources, 'datasets', 'web_response.csv'), self.response_model.scaler)
+        self.apdex_data = self._load_df(os.path.join(resources, 'datasets', 'apdex.csv'), self.apdex_model.scaler)
+        self.thoughput_data = self._load_df(os.path.join(resources, 'datasets', 'throughput.csv'), self.throughput_model.scaler)
 
         self.models = {
             TimeSeriesType.RESPONSE: self.response_model,
@@ -96,7 +96,7 @@ class AnomalyAnalizerModel:
         result = seasonal_decompose(data['value'], model='additive', period=1440)  # Period is the number of minutes in a day
         data['de_seasonalized'] = data['value'] - result.seasonal
         data.reset_index(inplace=True)
-        data['normilized'] = scaler.transform(data['de_seasonalized'].values.reshape(-1, 1))
+        #data['normilized'] = scaler.transform(data['de_seasonalized'].values.reshape(-1, 1))
         return data    
 
     def predict(self, series_type: TimeSeriesType, start_date: dt.datetime, end_date: dt.datetime) -> pd.Series:
@@ -127,4 +127,5 @@ class AnomalyAnalizerModel:
 
         deseasonalized = torch.FloatTensor(data['normilized'].values)
         anomalies, predicted_values = detect_anomalies(model, deseasonalized, model.threshold, model.seq_len)
-        return data.iloc[anomalies].point.to_list()
+        result = [t.to_pydatetime() for t in data.iloc[anomalies].point.to_list()]
+        return result
