@@ -114,9 +114,10 @@ class AnomalyAnalizerModel:
             model.eval()  # Set the model to evaluation mode
             anomalies = []
             predicted_values = []
+            print('ITERATIONS', len(time_series) - window_size + 1)
             with torch.no_grad():  # Disable gradient calculation
                 for i in range(0, len(time_series) - window_size + 1, window_size):
-                    window = time_series[i:i + window_size].unsqueeze(0)  # Add batch dimension
+                    window = time_series[i:i + window_size].unsqueeze(0).unsqueeze(2)  # Add batch dimension
                     prediction = model(window).squeeze(0)
                     predicted_values.extend(prediction.tolist())
 
@@ -129,4 +130,7 @@ class AnomalyAnalizerModel:
         deseasonalized = torch.FloatTensor(data['normilized'].values)
         anomalies, predicted_values = detect_anomalies(model, deseasonalized, model.threshold, model.seq_len)
         result = [t.to_pydatetime() for t in data.iloc[anomalies].point.to_list()]
+        result = [t for t in result if t <= end_date]
+        print(result)
+        print(end_date)
         return result

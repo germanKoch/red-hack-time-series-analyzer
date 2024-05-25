@@ -18,4 +18,5 @@ class AnomalyAnalizerService:
 
     def get_anomaly(self, series_type: TimeSeriesType, start_date: dt.datetime, end_date: dt.datetime):
         data = self.model.predict(series_type, start_date, end_date)
+        data = [t.isoformat() for t in data]
         return data

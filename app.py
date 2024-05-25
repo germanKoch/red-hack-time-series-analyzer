@@ -29,7 +29,7 @@ def get_anomalies():
     # Parse and validate the datetimes
     start_datetime = parse_datetime(start)
     end_datetime = parse_datetime(end)
-    series_type = TimeSeriesType(option)
+    series_type = TimeSeriesType[option]
 
     result = service.get_anomaly(series_type, start_datetime, end_datetime)
 
