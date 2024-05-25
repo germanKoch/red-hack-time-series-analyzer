@@ -10,7 +10,11 @@ class AnomalyAnalizerService:
 
     def get_series(self, series_type: TimeSeriesType):
         data = self.model.data[series_type]
-        return data[['point', 'value']].to_dict(orient='records')
+        series = data[['point', 'value']].to_dict(orient='records')
+        # Convert the datetime objects to string
+        for record in series:
+            record['point'] = record['point'].isoformat()
+        return series
 
     def get_anomaly(self, series_type: TimeSeriesType, start_date: dt.datetime, end_date: dt.datetime):
         data = self.model.predict(series_type, start_date, end_date)
