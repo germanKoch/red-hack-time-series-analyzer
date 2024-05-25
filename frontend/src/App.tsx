@@ -1,7 +1,9 @@
+import { Chart } from '@/components/Chart'
+
 import './App.css'
 
 function App() {
-	return <>Datashit</>
+	return <Chart />
 }
 
 export default App
