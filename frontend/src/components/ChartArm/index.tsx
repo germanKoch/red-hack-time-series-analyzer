@@ -44,11 +44,11 @@ export const Chart: React.FC<ChartProps> = ({ data }) => {
 		)
 		cursor.lineY.set('visible', false)
 
-		const colorSet = am5.ColorSet.new(root, {})
+		// const colorSet = am5.ColorSet.new(root, {})
 
 		// The data
 
-		const switcher = true
+		// const switcher = true
 
 		// Create axes
 		// https://www.amcharts.com/docs/v5/charts/xy-chart/axes/
@@ -67,6 +67,7 @@ export const Chart: React.FC<ChartProps> = ({ data }) => {
 				categoryField: 'point',
 				renderer: xRenderer,
 				tooltip: am5.Tooltip.new(root, {}),
+				forceHidden: true,
 			}),
 		)
 
@@ -87,6 +88,7 @@ export const Chart: React.FC<ChartProps> = ({ data }) => {
 				categoryXField: 'point',
 				tooltip: am5.Tooltip.new(root, {
 					labelText: '{valueY}',
+
 					dy: -5,
 				}),
 			}),
