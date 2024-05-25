@@ -2,9 +2,21 @@ from flask import Flask, request, jsonify
 from datetime import datetime
 from backend.service.anomaly_analizer_service import AnomalyAnalizerService
 from backend.service.types import TimeSeriesType
-import os
+from flask_cors import CORS
+
 
 app = Flask(__name__)
+app.config['CORS_HEADERS'] = 'Content-Type'
+CORS(app, origins="*")
+
+# @app.before_request
+# def before_request():
+#     headers = {'Access-Control-Allow-Origin': '*',
+#                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+#                'Access-Control-Allow-Headers': 'Content-Type'}
+#     if request.method.lower() == 'options':
+#         return jsonify(headers), 200
+
 service = AnomalyAnalizerService()
 
 def parse_datetime(date_str):
