@@ -96,7 +96,8 @@ class AnomalyAnalizerModel:
         result = seasonal_decompose(data['value'], model='additive', period=1440)  # Period is the number of minutes in a day
         data['de_seasonalized'] = data['value'] - result.seasonal
         data.reset_index(inplace=True)
-        #data['normilized'] = scaler.transform(data['de_seasonalized'].values.reshape(-1, 1))
+        print(scaler)
+        data['normilized'] = scaler.transform(data['de_seasonalized'].values.reshape(-1, 1))
         return data    
 
     def predict(self, series_type: TimeSeriesType, start_date: dt.datetime, end_date: dt.datetime) -> pd.Series:
