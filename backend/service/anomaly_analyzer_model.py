@@ -5,7 +5,7 @@ import pytorch_lightning as pl
 import torch
 import math
 import datetime as dt
-from service.types import TimeSeriesType
+from backend.service.types import TimeSeriesType
 from statsmodels.tsa.seasonal import seasonal_decompose
 
 class ConvAutoencoder(pl.LightningModule):

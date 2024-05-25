@@ -1,6 +1,6 @@
-import service.anomaly_analyzer_model as anomaly_analyzer_model
+import backend.service.anomaly_analyzer_model as anomaly_analyzer_model
 import datetime as dt
-from service.types import TimeSeriesType
+from backend.service.types import TimeSeriesType
 from enum import Enum
 
 

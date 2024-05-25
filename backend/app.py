@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from datetime import datetime
-from service.anomaly_analizer_service import AnomalyAnalizerService
-from service.types import TimeSeriesType
+from backend.service.anomaly_analizer_service import AnomalyAnalizerService
+from backend.service.types import TimeSeriesType
 import os
 
 app = Flask(__name__)
