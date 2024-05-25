@@ -1,0 +1,12 @@
+{
+    "batch_size": 64,
+    "epochs": 5,
+    "labels": [
+        "web_response",
+        "throughput",
+        "error",
+        "apdex"
+    ],
+    "lr": 0,
+    "window_size": 30
+}
