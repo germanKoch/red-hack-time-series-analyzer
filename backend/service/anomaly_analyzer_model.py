@@ -84,7 +84,10 @@ class AnomalyAnalizerModel:
         data.reset_index(inplace=True)
         print(scaler)
         data['normilized'] = scaler.transform(data['de_seasonalized'].values.reshape(-1, 1))
-        return data    
+        return data  
+
+    def get_data(self, series_type: TimeSeriesType):
+        return self.model.data[series_type]  
 
     def predict(self, series_type: TimeSeriesType, start_date: dt.datetime, end_date: dt.datetime) -> pd.Series:
         # iterate over the winddows with len 128 between start_date and end_date

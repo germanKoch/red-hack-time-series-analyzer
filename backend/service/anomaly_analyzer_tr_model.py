@@ -1,13 +1,18 @@
-import pandas as pd
 import os
-from torch import nn
 import torch
+import torch.nn as nn
+import pandas as pd
 import math
-import datetime as dt
-from backend.service.types import TimeSeriesType
+# import dgl
+# from dgl.nn import GATConv
+from time import time
 from torch.nn import TransformerEncoder
+from backend.service.types import TimeSeriesType
 from torch.nn import TransformerDecoder
-from statsmodels.tsa.seasonal import seasonal_decompose
+import numpy as np
+import datetime as dt
+
+from torch.utils.data import Dataset, DataLoader, TensorDataset
 
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model, dropout=0.1, max_len=5000):
@@ -127,64 +132,115 @@ def load_checkpoint(path):
     )
     checkpoint = torch.load(path)
     model.load_state_dict(checkpoint['model_state_dict'])
+    return model
+
+def min_max_scaling(df, phi=0.05):
+    df_normalized = df.copy()
+    for column in df.columns:
+        min_val = df[column].min()
+        max_val = df[column].max()
+        df_normalized[column] = (df[column] - min_val) / (max_val - min_val + phi)
+    return df_normalized
+
+def convert_to_windows(data, model):
+    windows = []
+    w_size = model.n_window
+    for i, g in enumerate(data):
+        if i >= w_size:
+            w = data[i-w_size:i]
+        else:
+            w = torch.cat([data[0].repeat(w_size-i, 1), data[0:i]])
+        windows.append(w)
+    return torch.stack(windows)
+
+def get_inference(model, data, dataO):
+    torch.zero_grad = True
+    model.eval()
+    feats = dataO.shape[1]
+    l = nn.MSELoss(reduction = 'none')
+    data_x = torch.DoubleTensor(data)
+    dataset = TensorDataset(data_x, data_x)
+    bs = len(data)
+    dataloader = DataLoader(dataset, batch_size=bs)
+    l1s, l2s = [], []
+    for d, _ in dataloader:
+        window = d.permute(1, 0, 2)
+        elem = window[-1, :, :].view(1, bs, feats)
+        z = model(window, elem)
+        if isinstance(z, tuple):
+            z = z[1]
+    loss = l(z, elem)[0]
+    return loss.detach().numpy(), z.detach().numpy()[0]
+
+def predict_loss(model, data):
+    timestamp = data["timestamp"]
+    data = data[["web_response", "throughput", "error", "apdex"]]
+    test_norm = min_max_scaling(data, phi=0.0)
+    test_loader = DataLoader(np.array(test_norm), batch_size=len(test_norm))
+
+    testD = next(iter(test_loader))
+    testO = testD
+
+    testD = convert_to_windows(testD, model)
+    result = get_inference(model, testD, testO)
+    loss = pd.DataFrame(result[0], columns=['web_response', 'throughput', 'error', 'apdex'])
+    loss['timestamp'] = timestamp
+    return loss
 
 class AnomalyAnalizerModel:
     def __init__(self):
         ROOT = os.path.dirname(os.path.abspath(__file__))
         resources = os.path.join(ROOT, "..", "resources")
-        self.model = load_checkpoint(os.path.join(resources, 'models', 'model.ckpt'))
+        model = load_checkpoint(os.path.join(resources, 'models', 'model.ckpt'))
+        
         self.data = self._load_df(
-            os.path.join(resources, 'datasets', 'response.csv'), 
+            os.path.join(resources, 'datasets', 'web_response.csv'), 
             os.path.join(resources, 'datasets', 'throughput.csv'), 
             os.path.join(resources, 'datasets', 'error.csv'), 
             os.path.join(resources, 'datasets', 'apdex.csv')
         )
+        self.loss = predict_loss(model, self.data)
+        self.quantiles = self.loss[["web_response", "throughput", "error", "apdex"]].quantile(0.99).to_dict()
         
     def _load_df(self, RESP_DATA, THR_DATA, ERROR_DATA, APDEX_DATA):
         web_response = pd.read_csv(RESP_DATA, header=0, sep=',', index_col=0).reset_index()
         throughput = pd.read_csv(THR_DATA, header=0, sep=',', index_col=0).reset_index()
         error = pd.read_csv(ERROR_DATA, header=0, sep=',', index_col=0).reset_index()
         apdex = pd.read_csv(APDEX_DATA, header=0, sep=',', index_col=0).reset_index()
-        web_response.rename(columns={"point": "timestamp"}, inplace=True)
-        throughput.rename(columns={"point": "timestamp", "sum_call_count": "throughput"}, inplace=True)
-        error.rename(columns={"point": "timestamp", "ratio": "error"}, inplace=True)
+        
+        apdex.rename(columns={"point": "timestamp", "value": "apdex"}, inplace=True)
+        web_response.rename(columns={"point": "timestamp", "value": "web_response"}, inplace=True)
+        throughput.rename(columns={"point": "timestamp", "value": "throughput"}, inplace=True)
+        error.rename(columns={"point": "timestamp", "value": "error"}, inplace=True)
+        
         ts_df = pd.merge(web_response, throughput, on="timestamp")
         ts_df = pd.merge(ts_df, error, on="timestamp")
         ts_df = pd.merge(ts_df, apdex, on="timestamp")
         ts_df['timestamp'] = pd.to_datetime(ts_df['timestamp'])
         return ts_df    
+    
+    def get_data(self, series_type: TimeSeriesType):
+        if series_type == TimeSeriesType.RESPONSE:
+            return self.data[['timestamp', 'web_response']].rename(columns={'web_response': 'value', 'timestamp': 'point'})
+        elif series_type == TimeSeriesType.THROUGHPUT:
+            return self.data[['timestamp', 'throughput']].rename(columns={'throughput': 'value', 'timestamp': 'point'})
+        elif series_type == TimeSeriesType.APDEX:
+            return self.data[['timestamp', 'apdex']].rename(columns={'apdex': 'value', 'timestamp': 'point'})
+        elif series_type == TimeSeriesType.ERROR:
+            return self.data[['timestamp', 'error']].rename(columns={'error': 'value', 'timestamp': 'point'})
 
     def predict(self, series_type: TimeSeriesType, start_date: dt.datetime, end_date: dt.datetime) -> pd.Series:
         # iterate over the winddows with len 128 between start_date and end_date
-        model = self.models[series_type]
-        data = self.data[series_type]
+        def get_anomaly(self, quantile, column, start_date: dt.datetime, end_date: dt.datetime):
+            filtered = self.loss[(self.loss['timestamp'] >= start_date) & (self.loss['timestamp'] <= end_date)]
+            filtered = filtered[filtered[column] > quantile]
+            return [t.to_pydatetime() for t in filtered['timestamp']]
 
-        diff = end_date - start_date
-        diff_minutes = math.ceil(((diff.days * 24 * 60) + (diff.seconds/60))/128)*128
-
-        data = data[(data['point'] >= start_date)].head(diff_minutes)
-
-        def detect_anomalies(model, time_series, threshold, window_size):
-            model.eval()  # Set the model to evaluation mode
-            anomalies = []
-            predicted_values = []
-            print('ITERATIONS', len(time_series) - window_size + 1)
-            with torch.no_grad():  # Disable gradient calculation
-                for i in range(0, len(time_series) - window_size + 1, window_size):
-                    window = time_series[i:i + window_size].unsqueeze(0).unsqueeze(2)  # Add batch dimension
-                    prediction = model(window).squeeze(0)
-                    predicted_values.extend(prediction.tolist())
-
-                    error = torch.abs(prediction - window.squeeze(0))
-                    for j in range(window_size):
-                        if error[j].item() > threshold:
-                            anomalies.append(i + j)  # Mark the specific point as an anomaly
-            return anomalies, predicted_values
-
-        deseasonalized = torch.FloatTensor(data['normilized'].values)
-        anomalies, predicted_values = detect_anomalies(model, deseasonalized, model.threshold, model.seq_len)
-        result = [t.to_pydatetime() for t in data.iloc[anomalies].point.to_list()]
-        result = [t for t in result if t <= end_date]
-        print(result)
-        print(end_date)
-        return result
+        if series_type == TimeSeriesType.RESPONSE:
+            return get_anomaly(self, self.quantiles['web_response'], 'web_response', start_date, end_date)
+        elif series_type == TimeSeriesType.THROUGHPUT:
+            return get_anomaly(self, self.quantiles['throughput'], 'throughput', start_date, end_date)
+        elif series_type == TimeSeriesType.APDEX:
+            return get_anomaly(self, self.quantiles['apdex'], 'apdex', start_date, end_date)
+        elif series_type == TimeSeriesType.ERROR:
+            return get_anomaly(self, self.quantiles['error'], 'error', start_date, end_date)
