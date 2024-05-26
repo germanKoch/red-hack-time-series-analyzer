@@ -8,16 +8,34 @@ export const axios = Axios.create({
 	baseURL,
 })
 
-export type Series = 'RESPONSE' | 'APDEX' | 'THROUGHPUT'
+export type Metric = 'RESPONSE' | 'APDEX' | 'THROUGHPUT' | 'ERROR'
 export type Point = {
 	point: string
 	value: number
 }
 
-export const getSeries = (series: Series): Promise<AxiosResponse<Point[]>> => {
+export const getSeries = (series: Metric): Promise<AxiosResponse<Point[]>> => {
 	return axios.get<Point[]>('/get-series', {
 		params: {
 			'time-series': series,
+		},
+	})
+}
+
+export const getAnomalies = ({
+	startTime,
+	endTime,
+	timeSeries,
+}: {
+	startTime: string
+	endTime: string
+	timeSeries: Metric
+}) => {
+	return axios.get<string[]>('/get-anomilies', {
+		params: {
+			'time-series': timeSeries,
+			start: startTime,
+			end: endTime,
 		},
 	})
 }
