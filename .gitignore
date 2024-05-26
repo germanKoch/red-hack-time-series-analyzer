@@ -3,4 +3,4 @@ venv
 data
 lightning_logs
 .vscode
-__pycache__
+__pycache__/
