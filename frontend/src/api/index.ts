@@ -1,6 +1,7 @@
 import Axios, { AxiosResponse } from 'axios'
 
 const baseURL =
+	import.meta.env.VITE_BACKEND_URL ||
 	'https://time-series-outliers-detector-7d3cc62cf333.herokuapp.com'
 // 'https://326d-2601-647-5800-704-3d07-56ce-7d62-658b.ngrok-free.app/api'
 
