@@ -1,0 +1,18 @@
+version: '3'
+
+services:
+  react-app:
+    build:
+      context: ./frontend
+      dockerfile: ./frontend.Dockerfile
+    ports:
+      - "3000:80"
+  
+  flask-app:
+    build:
+      context: ./
+      dockerfile: ./backend.Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
