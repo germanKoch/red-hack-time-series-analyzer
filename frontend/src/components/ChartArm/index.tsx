@@ -117,7 +117,7 @@ export const Chart: React.FC<ChartProps> = React.memo(({ data, anomalies }) => {
 		// 	})
 		// })
 
-		series.bullets.push((root, series, dataItem) => {
+		series.bullets.push((root, _, dataItem) => {
 			const pointData = dataItem.dataContext as Point
 			if (anomalies.includes(pointData.point)) {
 				return am5.Bullet.new(root, {
