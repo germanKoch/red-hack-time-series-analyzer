@@ -1,4 +1,5 @@
 import backend.service.anomaly_analyzer_tr_model as anomaly_analyzer_tr_model
+import backend.service.anomaly_analyzer_model as anomaly_analyzer_model
 import datetime as dt
 from backend.service.types import TimeSeriesType
 from enum import Enum
@@ -6,7 +7,7 @@ from enum import Enum
 
 class AnomalyAnalizerService:
     def __init__(self):
-        self.model = anomaly_analyzer_tr_model.AnomalyAnalizerModel()
+        self.model = anomaly_analyzer_model.AnomalyAnalizerModel()
 
     def get_series(self, series_type: TimeSeriesType):
         data = self.model.get_data(series_type)
