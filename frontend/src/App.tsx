@@ -1,9 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import dayjs from 'dayjs'
 import ArrowBackIosIcon from '@mui/icons-material/ArrowBackIos'
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos'
-import { Button, IconButton, Typography } from '@mui/material'
+import {
+	Box,
+	Button,
+	CircularProgress,
+	IconButton,
+	MenuItem,
+	Select,
+	SelectProps,
+	Typography,
+} from '@mui/material'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import {
 	DateTimePicker,
@@ -11,7 +20,7 @@ import {
 } from '@mui/x-date-pickers/DateTimePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 
-import api, { Point } from '@/api'
+import api, { getAnomalies, Metric, Point } from '@/api'
 
 import { Chart } from './components/ChartArm'
 
@@ -20,9 +29,16 @@ import './App.css'
 const PageSize = 1000
 
 function App() {
+	const [isLoading, setIsLoading] = useState<boolean>(false)
 	const [responseSeries, setResponseSeries] = useState<Point[]>([])
+	const [apdexSeries, setApdexSeries] = useState<Point[]>([])
+	const [throughputSeries, setThroughputSeries] = useState<Point[]>([])
+	const [errorSeries, setErrorSeries] = useState<Point[]>([])
+
 	const [series, setSeries] = useState<Point[]>([])
+	const [anomalies, setAnomalies] = useState<string[]>([])
 	const [page, setPage] = useState<number>(0)
+	const [metric, setMetric] = useState<Metric>('RESPONSE')
 
 	const [startTime, setStartTime] = useState<dayjs.Dayjs | null>(
 		dayjs('2024-04-15'),
@@ -43,30 +59,86 @@ function App() {
 		setEndTime(value)
 	}
 
-	const handleGetAnomalies: React.FormEventHandler = (e) => {
-		e.preventDefault()
+	const handleMetricChange: SelectProps['onChange'] = (e) => {
+		setMetric(e.target.value as Metric)
+	}
 
-		console.log(startTime, endTime)
-
-		setSeries(
-			responseSeries.filter(({ point }) => {
+	const filterSeriesByDates = useCallback(
+		(s: Point[]) => {
+			return s.filter(({ point }) => {
 				const pointDate = new Date(point)
 				if (startTime && endTime) {
 					return startTime.isBefore(pointDate) && endTime.isAfter(pointDate)
 				} else {
 					return false
 				}
-			}),
-		)
+			})
+		},
+		[endTime, startTime],
+	)
+
+	const getSeriesData = (m: Metric) => {
+		switch (m) {
+			case 'RESPONSE':
+				return responseSeries
+			case 'THROUGHPUT':
+				return throughputSeries
+			case 'APDEX':
+				return apdexSeries
+			case 'ERROR':
+				return errorSeries
+			default:
+				return responseSeries
+		}
 	}
 
-	console.log(series)
+	const handleGetAnomalies: React.FormEventHandler = async (e) => {
+		e.preventDefault()
+		setIsLoading(true)
+
+		const newSeries = getSeriesData(metric)
+
+		setSeries(filterSeriesByDates(newSeries))
+
+		const anomalies = (
+			await getAnomalies({
+				startTime: startTime?.format('YYYY-MM-DDTHH:mm:ss') || '',
+				endTime: endTime?.format('YYYY-MM-DDTHH:mm:ss') || '',
+				timeSeries: metric,
+			})
+		).data
+
+		setAnomalies(anomalies)
+		setIsLoading(false)
+	}
 
 	useEffect(() => {
 		const fetchData = async () => {
-			const { data } = await api.getSeries('RESPONSE')
-			setResponseSeries(data)
-			setSeries(data)
+			setIsLoading(true)
+			const [responseData, throughputData, apdexData, errorData] =
+				await Promise.all([
+					api.getSeries('RESPONSE'),
+					api.getSeries('THROUGHPUT'),
+					api.getSeries('APDEX'),
+					api.getSeries('ERROR'),
+				])
+			const anomalies = (
+				await getAnomalies({
+					startTime: startTime?.format('YYYY-MM-DDTHH:mm:ss') || '',
+					endTime: endTime?.format('YYYY-MM-DDTHH:mm:ss') || '',
+					timeSeries: metric,
+				})
+			).data
+
+			setResponseSeries(responseData.data)
+			setThroughputSeries(throughputData.data)
+			setApdexSeries(apdexData.data)
+			setErrorSeries(errorData.data)
+
+			setAnomalies(anomalies)
+
+			setSeries(filterSeriesByDates(responseData.data))
+			setIsLoading(false)
 		}
 
 		fetchData()
@@ -88,6 +160,17 @@ function App() {
 						onChange={handleEndTimeChange}
 					/>
 
+					<Select<Metric>
+						value={metric}
+						label="Metric"
+						onChange={handleMetricChange}
+					>
+						<MenuItem value={'RESPONSE'}>Response</MenuItem>
+						<MenuItem value={'APDEX'}>Apdex</MenuItem>
+						<MenuItem value={'THROUGHPUT'}>Throughput</MenuItem>
+						<MenuItem value={'ERROR'}>Error</MenuItem>
+					</Select>
+
 					<Button type="submit" variant="contained">
 						Get anomalies
 					</Button>
@@ -104,7 +187,23 @@ function App() {
 						<ArrowForwardIosIcon />
 					</IconButton>
 				</div>
-				<Chart data={series.slice(page * PageSize, (page + 1) * PageSize)} />
+				{isLoading ? (
+					<Box
+						sx={{
+							display: 'flex',
+							width: '100%',
+							justifyContent: 'center',
+							margin: '30px',
+						}}
+					>
+						<CircularProgress />
+					</Box>
+				) : (
+					<Chart
+						data={series.slice(page * PageSize, (page + 1) * PageSize)}
+						anomalies={anomalies}
+					/>
+				)}
 			</div>
 		</LocalizationProvider>
 	)

@@ -1,5 +1,5 @@
 //	import am5 from '@amcharts/amcharts5';
-import { useLayoutEffect } from 'react'
+import React, { useLayoutEffect, useRef } from 'react'
 
 import * as am5 from '@amcharts/amcharts5'
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated'
@@ -9,10 +9,13 @@ import { Point } from '@/api'
 
 type ChartProps = {
 	data: Point[]
+	anomalies: string[]
 }
 
-export const Chart: React.FC<ChartProps> = ({ data }) => {
-	//= Root.new("chartdiv");
+export const Chart: React.FC<ChartProps> = React.memo(({ data, anomalies }) => {
+	const rootRef = useRef<am5.Root | null>(null)
+	const seriesRef = useRef<am5xy.LineSeries | null>(null)
+
 	useLayoutEffect(() => {
 		const root = am5.Root.new('chartdiv')
 
@@ -105,17 +108,35 @@ export const Chart: React.FC<ChartProps> = ({ data }) => {
 		// 	templateField: 'fillSettings',
 		// })
 
-		series.bullets.push(function () {
-			return am5.Bullet.new(root, {
-				sprite: am5.Circle.new(root, {
-					templateField: 'bulletSettings',
-					radius: 5,
-				}),
-			})
+		// series.bullets.push(function () {
+		// 	return am5.Bullet.new(root, {
+		// 		sprite: am5.Circle.new(root, {
+		// 			fill: am5.color(0xff0000),
+		// 			radius: 5,
+		// 		}),
+		// 	})
+		// })
+
+		series.bullets.push((root, series, dataItem) => {
+			const pointData = dataItem.dataContext as Point
+			if (anomalies.includes(pointData.point)) {
+				return am5.Bullet.new(root, {
+					sprite: am5.Circle.new(root, {
+						radius: 5,
+						fill: am5.color(0xff0000),
+					}),
+				})
+			}
+			// return am5.Bullet.new(root, {
+			// 	sprite: am5.Circle.new(root, {
+			// 		radius: 5,
+			// 		fill: am5.color(0x0000ff),
+			// 	}),
+			// })
 		})
 
 		series.data.setAll(data)
-		series.appear(1000)
+		// series.appear(1000)
 
 		// Add scrollbar
 		// https://www.amcharts.com/docs/v5/charts/xy-chart/scrollbars/
@@ -127,14 +148,17 @@ export const Chart: React.FC<ChartProps> = ({ data }) => {
 			}),
 		)
 
+		seriesRef.current = series
+		rootRef.current = root
+
 		// Make stuff animate on load
 		// https://www.amcharts.com/docs/v5/concepts/animations/
-		chart.appear(1000, 100)
+		// chart.appear(1000, 100)
 
 		return () => {
 			root.dispose()
 		}
-	}, [data])
+	}, [data, anomalies])
 
 	return <div id="chartdiv" style={{ width: '100%', height: '500px' }}></div>
-}
+})
